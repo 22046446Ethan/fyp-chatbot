@@ -157,8 +157,8 @@ class ChatHistoryHandler:
 def initialize_session_state():
     if 'chat_handler' not in st.session_state:
         st.session_state.chat_handler = ChatHistoryHandler(
-            supabase_url="https://njjwqayxblfovroxlwar.supabase.co",
-            supabase_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qandxYXl4Ymxmb3Zyb3hsd2FyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4NTE1OTQsImV4cCI6MjA1MzQyNzU5NH0.1Ai2qd78ka70YhWSCeFnaXsK_7wpwPGs8beDfJsBT1E"
+                supabase_url=st.secrets["supabase_url"],
+                supabase_key=st.secrets["supabase_key"]
         )
     
     if 'current_thread_id' not in st.session_state:
