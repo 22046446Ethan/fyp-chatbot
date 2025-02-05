@@ -19,20 +19,38 @@ st.set_page_config(
 # Custom CSS for styling
 st.markdown("""
     <style>
-    .chat-thread {
+    .chat-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         padding: 10px;
         margin: 5px 0;
         border-radius: 5px;
         background-color: #f0f2f6;
-        cursor: pointer;
         border: 1px solid #e0e0e0;
     }
-    .chat-thread:hover {
+    .chat-container:hover {
         background-color: #e0e2e6;
     }
     .selected-thread {
         background-color: #e0e2e6;
         border: 1px solid #c0c0c0;
+    }
+    .delete-button {
+        color: #ff4b4b;
+        cursor: pointer;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 14px;
+        transition: all 0.3s;
+    }
+    .delete-button:hover {
+        color: #ff0000;
+        background-color: rgba(255, 75, 75, 0.1);
+    }
+    .stButton button {
+        width: 100%;
+        text-align: left;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -154,6 +172,19 @@ class ChatHistoryHandler:
             print(f"Error retrieving chat history: {str(e)}")
             return {}
 
+    def delete_thread(self, thread_id):
+        """Delete all records associated with a thread_id from the checkpoints table"""
+        try:
+            response = self.supabase.table('checkpoints') \
+                          .delete() \
+                          .eq('thread_id', thread_id) \
+                          .execute()
+            print(f"Successfully deleted thread {thread_id}")
+            return True
+        except Exception as e:
+            print(f"Error deleting thread {thread_id}: {str(e)}")
+            return False
+
 def initialize_session_state():
     if 'chat_handler' not in st.session_state:
         st.session_state.chat_handler = ChatHistoryHandler(
@@ -197,19 +228,38 @@ def display_sidebar():
         st.session_state.messages = []
         st.rerun()
 
-    # Display chat threads
+    # Display chat threads with delete buttons
     for thread_id, messages in st.session_state.chat_threads.items():
         first_msg = get_first_user_message(messages)
         preview = first_msg[:50] + "..." if len(first_msg) > 50 else first_msg
         
-        button_key = f"thread_{thread_id}"
-        is_selected = st.session_state.current_thread_id == thread_id
-        button_style = "selected-thread" if is_selected else "chat-thread"
+        # Create a container for the thread and delete button
+        col1, col2 = st.sidebar.columns([8, 2])
         
-        if st.sidebar.button(preview, key=button_key, use_container_width=True):
+        # Thread preview button
+        is_selected = st.session_state.current_thread_id == thread_id
+        button_style = "selected-thread" if is_selected else "chat-container"
+        
+        if col1.button(preview, key=f"thread_{thread_id}", use_container_width=True):
             st.session_state.current_thread_id = thread_id
             st.session_state.messages = clean_messages(messages)
             st.rerun()
+        
+        # Delete button
+        if col2.button("🗑️", key=f"delete_{thread_id}", help="Delete this conversation"):
+            if st.session_state.chat_handler.delete_thread(thread_id):
+                # Remove thread from session state
+                del st.session_state.chat_threads[thread_id]
+                
+                # If the deleted thread was the current thread, create a new one
+                if st.session_state.current_thread_id == thread_id:
+                    st.session_state.current_thread_id = str(uuid.uuid4())
+                    st.session_state.messages = []
+                
+                st.success("Chat thread deleted successfully!")
+                st.rerun()
+            else:
+                st.sidebar.error("Failed to delete chat thread")
 
 def main():
     initialize_session_state()
