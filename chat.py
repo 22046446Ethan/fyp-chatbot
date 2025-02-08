@@ -94,9 +94,7 @@ class ChatHistoryHandler:
             if not data:
                 return messages
 
-            # Process messages from channel_values
             if 'channel_values' in data and 'messages' in data['channel_values']:
-                # Get the last user message and the last assistant response
                 last_user_msg = None
                 last_assistant_msg = None
                 
@@ -110,17 +108,15 @@ class ChatHistoryHandler:
                                 
                                 msg_type = 'user' if 'HumanMessage' in str(msg) else 'assistant'
                                 
-                                # Update last message based on type
                                 if msg_type == 'user':
                                     last_user_msg = {
                                         'role': 'user',
                                         'content': content
                                     }
                                 elif msg_type == 'assistant':
-                                    # Skip generic acknowledgments
                                     if not content.startswith("Understood") and \
                                        not "processing" in content.lower() and \
-                                       len(content.split()) > 3:  # Skip very short responses
+                                       len(content.split()) > 3:  
                                         last_assistant_msg = {
                                             'role': 'assistant',
                                             'content': content
@@ -228,15 +224,12 @@ def display_sidebar():
         st.session_state.messages = []
         st.rerun()
 
-    # Display chat threads with delete buttons
     for thread_id, messages in st.session_state.chat_threads.items():
         first_msg = get_first_user_message(messages)
         preview = first_msg[:50] + "..." if len(first_msg) > 50 else first_msg
         
-        # Create a container for the thread and delete button
         col1, col2 = st.sidebar.columns([8, 2])
         
-        # Thread preview button
         is_selected = st.session_state.current_thread_id == thread_id
         button_style = "selected-thread" if is_selected else "chat-container"
         
@@ -248,10 +241,8 @@ def display_sidebar():
         # Delete button
         if col2.button("🗑️", key=f"delete_{thread_id}", help="Delete this conversation"):
             if st.session_state.chat_handler.delete_thread(thread_id):
-                # Remove thread from session state
                 del st.session_state.chat_threads[thread_id]
                 
-                # If the deleted thread was the current thread, create a new one
                 if st.session_state.current_thread_id == thread_id:
                     st.session_state.current_thread_id = str(uuid.uuid4())
                     st.session_state.messages = []
@@ -264,39 +255,43 @@ def display_sidebar():
 def main():
     initialize_session_state()
     
-    # Ensure current_thread_id is set
     if not st.session_state.current_thread_id:
         st.session_state.current_thread_id = str(uuid.uuid4())
     
-    # Load chat history if not already loaded
     if not st.session_state.chat_threads:
         st.session_state.chat_threads = st.session_state.chat_handler.get_chat_history()
     
-    # Display sidebar with chat history
     display_sidebar()
     
-    # Main chat area
     st.title("Mental Health Chat")
     
-    # Display current chat messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # User input
     if prompt := st.chat_input("Type your message here..."):
+        # Check if the message is empty or only contains whitespace
+        if not prompt.strip():
+            st.error("Please enter a message before sending.")
+            return
+            
         # Display user message
         with st.chat_message("user"):
             st.markdown(prompt)
             
-        # Add message to current thread
         new_user_message = {"role": "user", "content": prompt}
         st.session_state.messages.append(new_user_message)
 
-        # Get and display assistant response
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
+                    # Check message length
+                    if len(prompt.strip()) < 2:
+                        st.error("Please enter a longer message. Your message is too short.")
+                        # Remove the last message since we're not processing it
+                        st.session_state.messages.pop()
+                        return
+                        
                     response = requests.post(
                         API_URL,
                         json={"question": prompt},
@@ -322,8 +317,12 @@ def main():
                         
                     else:
                         st.error("I apologize, but I received an unexpected response. Please try again.")
+                        # Remove the last message since we didn't get a valid response
+                        st.session_state.messages.pop()
                 except Exception as e:
                     st.error(f"I apologize, but an error occurred. Please try again or contact support. Error: {str(e)}")
+                    # Remove the last message since we encountered an error
+                    st.session_state.messages.pop()
 
 if __name__ == "__main__":
     main()
